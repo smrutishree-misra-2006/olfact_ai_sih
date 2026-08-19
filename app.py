@@ -65,17 +65,7 @@ time_h = st.sidebar.number_input(
 )
 
 
-scenario = st.sidebar.selectbox(
-    "Scenario",
-    [
-        "Unknown",
-        "Control",
-        "Low",
-        "Medium",
-        "High",
-        "Mechanical"
-    ]
-)
+
 
 
 st.subheader(
