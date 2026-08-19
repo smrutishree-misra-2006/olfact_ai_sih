@@ -437,8 +437,3 @@ if st.button(
         fig2
     )
 
-
-    st.divider()
-
-
-    
