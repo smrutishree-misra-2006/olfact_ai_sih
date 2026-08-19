@@ -1,10 +1,6 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import joblib
 import matplotlib.pyplot as plt
-import gdown
-import os
 
 
 st.set_page_config(
@@ -13,265 +9,168 @@ st.set_page_config(
     layout="wide"
 )
 
-MODEL_PATH = "olfact_model.pkl"
-FEATURE_PATH = "feature_columns.pkl"
-CONFIG_PATH = "model_config.pkl"
-DATA_PATH = "data.csv"
+
+SENSOR_THRESHOLDS = {
+    "TGS2600": 0.986141,
+    "TGS2602": 1.069869,
+    "TGS822": 0.908817,
+    "MQ3": 0.863072,
+    "MQ135": 0.940894,
+    "MQ138": 0.975829,
+    "MiCS_NO2": 0.036819,
+    "MiCS_NH3": 0.053022,
+    "MiCS_CO": 0.642735
+}
 
 
-
-DATA_FILE_ID = "1MH9Qu8hO1uS3eGI8jUFTTQynMYU0NAI9"
-
-
-SENSORS = [
-    "TGS2600",
-    "TGS2602",
-    "TGS822",
-    "MQ3",
-    "MQ135",
-    "MQ138",
-    "MiCS_NO2",
-    "MiCS_NH3",
-    "MiCS_CO"
-]
-
-
-@st.cache_resource
-def load_model_files():
-
-    model = joblib.load(
-        MODEL_PATH
-    )
-
-    feature_columns = joblib.load(
-        FEATURE_PATH
-    )
-
-    config = joblib.load(
-        CONFIG_PATH
-    )
-
-    return (
-        model,
-        feature_columns,
-        config
-    )
-
-
-model, FEATURE_COLUMNS, CONFIG = load_model_files()
-
-THRESHOLD = CONFIG[
-    "probability_threshold"
-]
-
-
-@st.cache_data
-def load_data():
-
-    if not os.path.exists(DATA_PATH):
-
-        url = (
-            "https://drive.google.com/uc?id="
-            + DATA_FILE_ID
-        )
-
-        with st.spinner(
-            "Downloading sensor dataset..."
-        ):
-
-            gdown.download(
-                url,
-                DATA_PATH,
-                quiet=False
-            )
-
-    df = pd.read_csv(
-        DATA_PATH
-    )
-
-    df.columns = (
-        df.columns
-        .astype(str)
-        .str.strip()
-    )
-
-    return df
-
-
-st.title(
-    "🌱 Olfact-AI"
+SENSORS = list(
+    SENSOR_THRESHOLDS.keys()
 )
+
+
+st.title("🌱 Olfact-AI")
 
 st.subheader(
     "Early Pest Infestation Detection"
 )
 
 st.write(
-    "Sensor-based early detection "
-    "of pest infestation using machine learning."
+    "Enter the sensor readings to determine "
+    "whether the sensor response exceeds the "
+    "data-driven infestation thresholds."
 )
 
 
 st.sidebar.header(
-    "Detection Settings"
+    "Experiment Information"
 )
 
 
-threshold = st.sidebar.slider(
-    "Detection Threshold",
-    min_value=0.05,
-    max_value=0.95,
-    value=float(THRESHOLD),
-    step=0.05
+time_h = st.sidebar.number_input(
+    "Time after infestation (hours)",
+    min_value=0.0,
+    value=1.0,
+    step=1.0
 )
 
 
-st.sidebar.write(
-    f"Selected threshold: "
-    f"{threshold * 100:.0f}%"
+treatment = st.sidebar.selectbox(
+    "Treatment",
+    [
+        "Unknown",
+        "Control",
+        "Low",
+        "Medium",
+        "High",
+        "Mechanical"
+    ]
 )
 
 
-st.header(
+st.subheader(
     "🧪 Enter Sensor Readings"
 )
 
 
-values = {}
-
-
 cols = st.columns(3)
+
+
+sensor_values = {}
 
 
 for i, sensor in enumerate(SENSORS):
 
     with cols[i % 3]:
 
-        values[sensor] = st.number_input(
+        sensor_values[sensor] = st.number_input(
             sensor,
-            value=0.0,
+            min_value=0.0,
+            value=float(
+                SENSOR_THRESHOLDS[sensor] * 0.9
+            ),
             format="%.6f"
         )
 
 
-st.divider()
-
-
-st.header(
-    "Experiment Information"
-)
-
-
-col1, col2 = st.columns(2)
-
-
-with col1:
-
-    time_input = st.number_input(
-        "Time after infection (hours)",
-        min_value=0.0,
-        value=1.0,
-        step=1.0
-    )
-
-
-with col2:
-
-    treatment = st.selectbox(
-        "Treatment",
-        [
-            "Control",
-            "Low",
-            "Medium",
-            "High",
-            "Mechanical"
-        ]
-    )
-
-
-st.divider()
-
-
 if st.button(
-    "🔍 Predict Infection",
-    type="primary",
-    use_container_width=True
+    "🔍 Analyze Infestation",
+    type="primary"
 ):
 
-    feature_data = {}
+    results = []
 
 
-    for feature in FEATURE_COLUMNS:
+    for sensor in SENSORS:
 
-        feature_data[feature] = 0.0
+        value = sensor_values[sensor]
 
-        for sensor in SENSORS:
+        threshold = SENSOR_THRESHOLDS[sensor]
 
-            if feature.startswith(
-                sensor + "_"
-            ):
+        exceeded = value >= threshold
 
-                value = values[sensor]
+        difference = value - threshold
 
-                if feature.endswith(
-                    "_mean"
-                ):
-
-                    feature_data[
-                        feature
-                    ] = value
-
-                elif feature.endswith(
-                    "_std"
-                ):
-
-                    feature_data[
-                        feature
-                    ] = 0.0
-
-                elif feature.endswith(
-                    "_min"
-                ):
-
-                    feature_data[
-                        feature
-                    ] = value
-
-                elif feature.endswith(
-                    "_max"
-                ):
-
-                    feature_data[
-                        feature
-                    ] = value
-
-                break
+        percentage = (
+            difference / threshold
+        ) * 100
 
 
-    X = pd.DataFrame(
-        [feature_data]
+        results.append(
+            {
+                "Sensor": sensor,
+                "Reading": value,
+                "Threshold": threshold,
+                "Exceeded": exceeded,
+                "Difference": difference,
+                "Excess (%)": percentage
+            }
+        )
+
+
+    result_df = pd.DataFrame(
+        results
     )
 
 
-    X = X[
-        FEATURE_COLUMNS
-    ]
-
-
-    X = X.fillna(0)
-
-
-    probability = model.predict_proba(
-        X
-    )[0][1]
-
-
-    infected = (
-        probability >= threshold
+    exceeded_count = int(
+        result_df["Exceeded"].sum()
     )
 
 
-    st.header(
+    total_sensors = len(SENSORS)
+
+
+    if exceeded_count <= 2:
+
+        status = "NO INFESTATION"
+        status_message = (
+            "Sensor responses are mostly below "
+            "the data-driven thresholds."
+        )
+
+
+    elif exceeded_count <= 5:
+
+        status = "WARNING"
+        status_message = (
+            "Several sensor responses have exceeded "
+            "their data-driven thresholds."
+        )
+
+
+    else:
+
+        status = "INFESTATION DETECTED"
+        status_message = (
+            "Most sensor responses have exceeded "
+            "their data-driven thresholds."
+        )
+
+
+    st.divider()
+
+
+    st.subheader(
         "📊 Prediction"
     )
 
@@ -282,66 +181,104 @@ if st.button(
     with c1:
 
         st.metric(
-            "Infection Probability",
-            f"{probability * 100:.2f}%"
+            "Thresholds Exceeded",
+            f"{exceeded_count}/{total_sensors}"
         )
 
 
     with c2:
 
         st.metric(
-            "Detection Threshold",
-            f"{threshold * 100:.0f}%"
+            "Time",
+            f"{time_h:g} hours"
         )
 
 
     with c3:
 
-        if infected:
-
-            st.error(
-                "🚨 INFESTATION DETECTED"
-            )
-
-        else:
-
-            st.success(
-                "✅ NO INFESTATION DETECTED"
-            )
+        st.metric(
+            "Sensors",
+            f"{total_sensors}"
+        )
 
 
-    st.divider()
+    if status == "INFESTATION DETECTED":
+
+        st.error(
+            f"🚨 {status}"
+        )
+
+    elif status == "WARNING":
+
+        st.warning(
+            f"⚠️ {status}"
+        )
+
+    else:
+
+        st.success(
+            f"✅ {status}"
+        )
 
 
-    st.header(
-        "📈 Current Sensor Response"
+    st.info(
+        status_message
     )
 
 
-    sensor_df = pd.DataFrame(
-        {
-            "Sensor": SENSORS,
-            "Response": [
-                values[sensor]
-                for sensor in SENSORS
-            ]
-        }
+    st.subheader(
+        "📈 Sensor Response vs Detection Threshold"
+    )
+
+
+    plot_df = result_df[
+        [
+            "Sensor",
+            "Reading",
+            "Threshold"
+        ]
+    ].copy()
+
+
+    plot_df = plot_df.set_index(
+        "Sensor"
     )
 
 
     fig, ax = plt.subplots(
-        figsize=(12, 5)
+        figsize=(13, 6)
+    )
+
+
+    x = range(
+        len(plot_df)
     )
 
 
     ax.bar(
-        sensor_df["Sensor"],
-        sensor_df["Response"]
+        [i - 0.2 for i in x],
+        plot_df["Reading"],
+        width=0.4,
+        label="Current Sensor Reading"
     )
 
 
-    ax.set_xlabel(
-        "Gas Sensors"
+    ax.bar(
+        [i + 0.2 for i in x],
+        plot_df["Threshold"],
+        width=0.4,
+        label="Detection Threshold"
+    )
+
+
+    ax.set_xticks(
+        list(x)
+    )
+
+
+    ax.set_xticklabels(
+        plot_df.index,
+        rotation=45
     )
 
 
@@ -351,14 +288,11 @@ if st.button(
 
 
     ax.set_title(
-        "Current Sensor Response"
+        "Current Sensor Response vs Data-Driven Threshold"
     )
 
 
-    ax.tick_params(
-        axis="x",
-        rotation=45
-    )
+    ax.legend()
 
 
     ax.grid(
@@ -375,53 +309,134 @@ if st.button(
     )
 
 
-    st.divider()
+    st.subheader(
+        "🔬 Sensor Analysis"
+    )
 
 
-    st.header(
-        "📊 Current Infection Probability"
+    display_df = result_df.copy()
+
+
+    display_df["Reading"] = display_df[
+        "Reading"
+    ].round(6)
+
+
+    display_df["Threshold"] = display_df[
+        "Threshold"
+    ].round(6)
+
+
+    display_df["Difference"] = display_df[
+        "Difference"
+    ].round(6)
+
+
+    display_df["Excess (%)"] = display_df[
+        "Excess (%)"
+    ].round(2)
+
+
+    display_df = display_df.rename(
+        columns={
+            "Sensor": "Sensor",
+            "Reading": "Current Reading",
+            "Threshold": "Detection Threshold",
+            "Exceeded": "Threshold Exceeded",
+            "Difference": "Amount Above/Below",
+            "Excess (%)": "Difference (%)"
+        }
+    )
+
+
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+
+    st.subheader(
+        "🚨 Exceeded Sensors"
+    )
+
+
+    exceeded_df = result_df[
+        result_df["Exceeded"]
+    ].copy()
+
+
+    if len(exceeded_df) == 0:
+
+        st.success(
+            "No sensor exceeded its "
+            "data-driven detection threshold."
+        )
+
+    else:
+
+        for _, row in exceeded_df.iterrows():
+
+            st.write(
+                f"**{row['Sensor']}** — "
+                f"Reading: `{row['Reading']:.6f}` | "
+                f"Threshold: `{row['Threshold']:.6f}` | "
+                f"Exceeded by: "
+                f"`{row['Difference']:.6f}` "
+                f"({row['Excess (%)']:.2f}%)"
+            )
+
+
+    st.subheader(
+        "📊 Threshold Exceedance"
+    )
+
+
+    exceed_plot = result_df.copy()
+
+
+    exceed_plot["Excess"] = (
+        exceed_plot["Reading"]
+        - exceed_plot["Threshold"]
     )
 
 
     fig2, ax2 = plt.subplots(
-        figsize=(10, 5)
+        figsize=(13, 6)
     )
 
 
     ax2.bar(
-        ["Current Sample"],
-        [probability]
+        exceed_plot["Sensor"],
+        exceed_plot["Excess"]
     )
 
 
     ax2.axhline(
-        threshold,
-        linestyle="--",
-        linewidth=2,
-        label=(
-            f"Threshold = "
-            f"{threshold * 100:.0f}%"
-        )
+        0,
+        linewidth=1
     )
 
 
-    ax2.set_ylim(
-        0,
-        1.05
+    ax2.set_xlabel(
+        "Sensor"
     )
 
 
     ax2.set_ylabel(
-        "Infection Probability"
+        "Reading - Threshold"
     )
 
 
     ax2.set_title(
-        "Olfact-AI Prediction"
+        "Sensor Threshold Exceedance"
     )
 
 
-    ax2.legend()
+    ax2.tick_params(
+        axis="x",
+        rotation=45
+    )
 
 
     ax2.grid(
@@ -436,4 +451,52 @@ if st.button(
     st.pyplot(
         fig2
     )
+
+
+    st.subheader(
+        "⏱️ Detection Summary"
+    )
+
+
+    st.write(
+        f"At **{time_h:g} hours**, "
+        f"**{exceeded_count} out of {total_sensors} sensors** "
+        f"exceeded their data-driven detection thresholds."
+    )
+
+
+    if status == "INFESTATION DETECTED":
+
+        st.error(
+            "🚨 INFESTATION DETECTED"
+        )
+
+    elif status == "WARNING":
+
+        st.warning(
+            "⚠️ WARNING — possible infestation"
+        )
+
+    else:
+
+        st.success(
+            "✅ NO INFESTATION"
+        )
+
+
+    csv = result_df.to_csv(
+        index=False
+    )
+
+
+    st.download_button(
+        "Download Sensor Analysis",
+        data=csv,
+        file_name="olfact_ai_sensor_analysis.csv",
+        mime="text/csv"
+    )
+
+
+st.divider()
+
 
