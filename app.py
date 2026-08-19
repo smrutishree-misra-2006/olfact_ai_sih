@@ -22,6 +22,17 @@ SENSOR_THRESHOLDS = {
     "MiCS_CO": 0.642735
 }
 
+SENSOR_GASES = {
+    "TGS2600": "H₂, CO, Alcohol",
+    "TGS2602": "VOCs, NH₃, H₂S",
+    "TGS822": "Ethanol, Methanol",
+    "MQ3": "Alcohol / Ethanol",
+    "MQ135": "NH₃, NOₓ, Alcohol, Smoke",
+    "MQ138": "VOCs, Toluene, Acetone, Alcohol, H₂",
+    "MiCS_NO2": "NO₂",
+    "MiCS_NH3": "NH₃",
+    "MiCS_CO": "CO"
+}
 
 SENSORS = list(
     SENSOR_THRESHOLDS.keys()
@@ -82,15 +93,18 @@ for i, sensor in enumerate(SENSORS):
 
     with cols[i % 3]:
 
-        sensor_values[sensor] = st.number_input(
-            sensor,
-            min_value=0.0,
-            value=float(
-                SENSOR_THRESHOLDS[sensor] * 0.9
-            ),
-            format="%.6f"
+        st.markdown(
+            f"**{sensor}**  \n"
+            f"🧪 *Detects: {SENSOR_GASES[sensor]}*"
         )
 
+        sensor_values[sensor] = st.number_input(
+            f"{sensor} reading",
+            min_value=0.0,
+            value=float(SENSOR_THRESHOLDS[sensor] * 0.9),
+            format="%.6f",
+            key=sensor
+        )
 
 if st.button(
     "🔍 Analyze Infestation",
