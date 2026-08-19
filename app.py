@@ -4,11 +4,8 @@ import numpy as np
 import joblib
 import matplotlib.pyplot as plt
 import gdown
+import os
 
-
-# ============================================================
-# PAGE CONFIGURATION
-# ============================================================
 
 st.set_page_config(
     page_title="Olfact-AI",
@@ -17,58 +14,68 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# FILE PATHS
-# ============================================================
+MODEL_PATH = r"C:\final\olfact_model.pkl"
+FEATURE_PATH = r"C:\final\feature_columns.pkl"
+CONFIG_PATH = r"C:\final\model_config.pkl"
 
-MODEL_PATH = "olfact_model.pkl"
-FEATURE_PATH = "feature_columns.pkl"
-SENSORS_PATH = "sensors.pkl"
-CONFIG_PATH = "model_config.pkl"
-
-# Google Drive file ID
 DATA_FILE_ID = "1MH9Qu8hO1uS3eGI8jUFTTQynMYU0NAI9"
-
-# Temporary location used by the deployed app
-DATA_PATH = "data.csv"
+DATA_PATH = r"C:\final\data.csv"
 
 
-# ============================================================
-# LOAD MODEL FILES
-# ============================================================
+SENSORS = [
+    "TGS2600",
+    "TGS2602",
+    "TGS822",
+    "MQ3",
+    "MQ135",
+    "MQ138",
+    "MiCS_NO2",
+    "MiCS_NH3",
+    "MiCS_CO"
+]
+
 
 @st.cache_resource
 def load_model_files():
 
-    model = joblib.load(MODEL_PATH)
-    feature_columns = joblib.load(FEATURE_PATH)
-    sensors = joblib.load(SENSORS_PATH)
-    config = joblib.load(CONFIG_PATH)
+    model = joblib.load(
+        MODEL_PATH
+    )
 
-    return model, feature_columns, sensors, config
+    feature_columns = joblib.load(
+        FEATURE_PATH
+    )
+
+    config = joblib.load(
+        CONFIG_PATH
+    )
+
+    return (
+        model,
+        feature_columns,
+        config
+    )
 
 
-model, FEATURE_COLUMNS, SENSORS, CONFIG = load_model_files()
+model, FEATURE_COLUMNS, CONFIG = load_model_files()
 
-THRESHOLD = CONFIG["probability_threshold"]
+THRESHOLD = CONFIG[
+    "probability_threshold"
+]
 
-
-# ============================================================
-# DOWNLOAD DATASET FROM GOOGLE DRIVE
-# ============================================================
 
 @st.cache_data
 def load_data():
 
-    # Download only if the file doesn't already exist
-    import os
-
     if not os.path.exists(DATA_PATH):
 
-        url = f"https://drive.google.com/uc?id={DATA_FILE_ID}"
+        url = (
+            "https://drive.google.com/uc?id="
+            + DATA_FILE_ID
+        )
 
         with st.spinner(
-            "Downloading sensor dataset... This may take a while on the first run."
+            "Downloading sensor dataset..."
         ):
 
             gdown.download(
@@ -77,25 +84,32 @@ def load_data():
                 quiet=False
             )
 
-    df = pd.read_csv(DATA_PATH)
+    df = pd.read_csv(
+        DATA_PATH
+    )
+
+    df.columns = (
+        df.columns
+        .astype(str)
+        .str.strip()
+    )
 
     return df
 
 
-# ============================================================
-# TITLE
-# ============================================================
-
-st.title("🌱 Olfact-AI")
+st.title(
+    "🌱 Olfact-AI"
+)
 
 st.subheader(
     "Early Pest Infestation Detection"
 )
 
+st.write(
+    "Sensor-based early detection "
+    "of pest infestation using machine learning."
+)
 
-# ============================================================
-# SIDEBAR
-# ============================================================
 
 st.sidebar.header(
     "Detection Settings"
@@ -104,16 +118,18 @@ st.sidebar.header(
 
 threshold = st.sidebar.slider(
     "Detection Threshold",
-    0.05,
-    0.95,
-    float(THRESHOLD),
-    0.05
+    min_value=0.05,
+    max_value=0.95,
+    value=float(THRESHOLD),
+    step=0.05
 )
 
 
-# ============================================================
-# SENSOR INPUT
-# ============================================================
+st.sidebar.write(
+    f"Selected threshold: "
+    f"{threshold * 100:.0f}%"
+)
+
 
 st.header(
     "🧪 Enter Sensor Readings"
@@ -140,9 +156,10 @@ for i, sensor in enumerate(SENSORS):
 st.divider()
 
 
-# ============================================================
-# ADDITIONAL INPUTS
-# ============================================================
+st.header(
+    "Experiment Information"
+)
+
 
 col1, col2 = st.columns(2)
 
@@ -174,87 +191,84 @@ with col2:
 st.divider()
 
 
-# ============================================================
-# PREDICTION
-# ============================================================
-
 if st.button(
     "🔍 Predict Infection",
     type="primary",
     use_container_width=True
 ):
 
-    # --------------------------------------------------------
-    # CREATE FEATURE VECTOR
-    # --------------------------------------------------------
-
     feature_data = {}
 
 
     for feature in FEATURE_COLUMNS:
 
-        found = False
-
+        feature_data[feature] = 0.0
 
         for sensor in SENSORS:
 
-            if feature.startswith(sensor + "_"):
+            if feature.startswith(
+                sensor + "_"
+            ):
 
                 value = values[sensor]
 
+                if feature.endswith(
+                    "_mean"
+                ):
 
-                if feature.endswith("_mean"):
+                    feature_data[
+                        feature
+                    ] = value
 
-                    feature_data[feature] = value
+                elif feature.endswith(
+                    "_std"
+                ):
 
+                    feature_data[
+                        feature
+                    ] = 0.0
 
-                elif feature.endswith("_std"):
+                elif feature.endswith(
+                    "_min"
+                ):
 
-                    feature_data[feature] = 0
+                    feature_data[
+                        feature
+                    ] = value
 
+                elif feature.endswith(
+                    "_max"
+                ):
 
-                elif feature.endswith("_min"):
-
-                    feature_data[feature] = value
-
-
-                elif feature.endswith("_max"):
-
-                    feature_data[feature] = value
-
-
-                found = True
+                    feature_data[
+                        feature
+                    ] = value
 
                 break
 
 
-        if not found:
-
-            feature_data[feature] = 0
-
-
-    # --------------------------------------------------------
-    # CREATE INPUT DATAFRAME
-    # --------------------------------------------------------
-
     X = pd.DataFrame(
         [feature_data]
-    )[FEATURE_COLUMNS]
+    )
 
 
-    # --------------------------------------------------------
-    # PREDICTION
-    # --------------------------------------------------------
-
-    probability = model.predict_proba(X)[0][1]
+    X = X[
+        FEATURE_COLUMNS
+    ]
 
 
-    infected = probability >= threshold
+    X = X.fillna(0)
 
 
-    # ========================================================
-    # PREDICTION RESULTS
-    # ========================================================
+    probability = model.predict_proba(
+        X
+    )[0][1]
+
+
+    infected = (
+        probability >= threshold
+    )
+
 
     st.header(
         "📊 Prediction"
@@ -275,7 +289,7 @@ if st.button(
     with c2:
 
         st.metric(
-            "Threshold",
+            "Detection Threshold",
             f"{threshold * 100:.0f}%"
         )
 
@@ -298,25 +312,20 @@ if st.button(
     st.divider()
 
 
-    # ========================================================
-    # SENSOR RESPONSE GRAPH
-    # ========================================================
-
     st.header(
-        "📈 Sensor Response"
+        "📈 Current Sensor Response"
     )
 
 
-    sensor_df = pd.DataFrame({
-
-        "Sensor": SENSORS,
-
-        "Response": [
-            values[sensor]
-            for sensor in SENSORS
-        ]
-
-    })
+    sensor_df = pd.DataFrame(
+        {
+            "Sensor": SENSORS,
+            "Response": [
+                values[sensor]
+                for sensor in SENSORS
+            ]
+        }
+    )
 
 
     fig, ax = plt.subplots(
@@ -360,18 +369,16 @@ if st.button(
     plt.tight_layout()
 
 
-    st.pyplot(fig)
+    st.pyplot(
+        fig
+    )
 
 
     st.divider()
 
 
-    # ========================================================
-    # INFECTION PROBABILITY GRAPH
-    # ========================================================
-
     st.header(
-        "📈 Infection Probability"
+        "📊 Current Infection Probability"
     )
 
 
@@ -390,7 +397,10 @@ if st.button(
         threshold,
         linestyle="--",
         linewidth=2,
-        label=f"Threshold = {threshold:.2f}"
+        label=(
+            f"Threshold = "
+            f"{threshold * 100:.0f}%"
+        )
     )
 
 
@@ -422,30 +432,65 @@ if st.button(
     plt.tight_layout()
 
 
-    st.pyplot(fig2)
+    st.pyplot(
+        fig2
+    )
 
 
     st.divider()
 
 
-    # ========================================================
-    # DETECTION TIME ANALYSIS
-    # ========================================================
-
     st.header(
-        "⏱️ Detection Time"
+        "⏱️ Detection Time Analysis"
     )
 
 
     try:
 
-        # Load dataset
         df = load_data()
 
 
-        # ----------------------------------------------------
-        # CLEAN SENSOR COLUMNS
-        # ----------------------------------------------------
+        required_columns = [
+            "Time_h",
+            "TGS2600",
+            "TGS2602",
+            "TGS822",
+            "MQ3",
+            "MQ135",
+            "MQ138",
+            "MiCS_NO2",
+            "MiCS_NH3",
+            "MiCS_CO"
+        ]
+
+
+        missing_columns = [
+            col
+            for col in required_columns
+            if col not in df.columns
+        ]
+
+
+        if missing_columns:
+
+            st.error(
+                "Dataset is missing these columns:"
+            )
+
+            st.write(
+                missing_columns
+            )
+
+            st.write(
+                "Columns found in dataset:"
+            )
+
+            st.write(
+                df.columns.tolist()
+            )
+
+            st.stop()
+
 
         for sensor in SENSORS:
 
@@ -461,42 +506,53 @@ if st.button(
         )
 
 
-        # ----------------------------------------------------
-        # REMOVE INVALID ROWS
-        # ----------------------------------------------------
-
         df = df.dropna(
             subset=SENSORS + ["Time_h"]
         )
 
 
-        # ----------------------------------------------------
-        # CALCULATE TIME FEATURES
-        # ----------------------------------------------------
-
         rows = []
 
 
-        for t, group in df.groupby("Time_h"):
+        for t, group in df.groupby(
+            "Time_h"
+        ):
 
-            row = {}
+            row = {
+                "Time_h": t
+            }
 
 
             for sensor in SENSORS:
 
-                v = group[sensor].values
+                v = group[
+                    sensor
+                ].values
 
 
-                row[f"{sensor}_mean"] = np.mean(v)
-
-                row[f"{sensor}_std"] = np.std(v)
-
-                row[f"{sensor}_min"] = np.min(v)
-
-                row[f"{sensor}_max"] = np.max(v)
+                row[
+                    f"{sensor}_mean"
+                ] = np.mean(v)
 
 
-            rows.append(row)
+                row[
+                    f"{sensor}_std"
+                ] = np.std(v)
+
+
+                row[
+                    f"{sensor}_min"
+                ] = np.min(v)
+
+
+                row[
+                    f"{sensor}_max"
+                ] = np.max(v)
+
+
+            rows.append(
+                row
+            )
 
 
         time_features = pd.DataFrame(
@@ -504,38 +560,37 @@ if st.button(
         )
 
 
-        # ----------------------------------------------------
-        # CREATE MODEL INPUT
-        # ----------------------------------------------------
-
-        X_time = time_features[
-            FEATURE_COLUMNS
-        ].fillna(0)
-
-
-        # ----------------------------------------------------
-        # PREDICT PROBABILITIES
-        # ----------------------------------------------------
-
-        probabilities = model.predict_proba(
-            X_time
-        )[:, 1]
-
-
-        time_features["Probability"] = probabilities
-
-
-        time_features["Time_h"] = sorted(
-            df["Time_h"].unique()
+        time_features = (
+            time_features
+            .sort_values("Time_h")
+            .reset_index(drop=True)
         )
 
 
-        # ----------------------------------------------------
-        # FIND FIRST THRESHOLD CROSSING
-        # ----------------------------------------------------
+        X_time = (
+            time_features[
+                FEATURE_COLUMNS
+            ]
+            .fillna(0)
+        )
+
+
+        probabilities = (
+            model.predict_proba(
+                X_time
+            )[:, 1]
+        )
+
+
+        time_features[
+            "Probability"
+        ] = probabilities
+
 
         detected = time_features[
-            time_features["Probability"] >= threshold
+            time_features[
+                "Probability"
+            ] >= threshold
         ]
 
 
@@ -551,17 +606,18 @@ if st.button(
                 f"{first_time:g} hours"
             )
 
-
         else:
 
             st.warning(
-                "No threshold crossing found."
+                "No infestation threshold "
+                "crossing was found."
             )
 
 
-        # ====================================================
-        # PROBABILITY VS TIME GRAPH
-        # ====================================================
+        st.subheader(
+            "📈 Infection Probability vs Time"
+        )
+
 
         fig3, ax3 = plt.subplots(
             figsize=(12, 5)
@@ -572,7 +628,8 @@ if st.button(
             time_features["Time_h"],
             time_features["Probability"],
             marker="o",
-            linewidth=2
+            linewidth=2,
+            label="Infection Probability"
         )
 
 
@@ -580,12 +637,28 @@ if st.button(
             threshold,
             linestyle="--",
             linewidth=2,
-            label="Detection Threshold"
+            label=(
+                f"Detection Threshold "
+                f"({threshold * 100:.0f}%)"
+            )
         )
 
 
+        if len(detected) > 0:
+
+            ax3.axvline(
+                first_time,
+                linestyle=":",
+                linewidth=2,
+                label=(
+                    f"First Detection "
+                    f"({first_time:g} h)"
+                )
+            )
+
+
         ax3.set_xlabel(
-            "Time (hours)"
+            "Time after infestation (hours)"
         )
 
 
@@ -595,7 +668,7 @@ if st.button(
 
 
         ax3.set_title(
-            "Infection Probability vs Time"
+            "Olfact-AI Infection Probability Over Time"
         )
 
 
@@ -616,13 +689,160 @@ if st.button(
         plt.tight_layout()
 
 
-        st.pyplot(fig3)
+        st.pyplot(
+            fig3
+        )
+
+
+        st.subheader(
+            "Prediction Table"
+        )
+
+
+        display_df = time_features[
+            [
+                "Time_h",
+                "Probability"
+            ]
+        ].copy()
+
+
+        display_df[
+            "Probability"
+        ] = (
+            display_df[
+                "Probability"
+            ] * 100
+        )
+
+
+        display_df[
+            "Above Threshold"
+        ] = (
+            time_features[
+                "Probability"
+            ] >= threshold
+        )
+
+
+        display_df = (
+            display_df
+            .rename(
+                columns={
+                    "Time_h":
+                        "Time (hours)",
+                    "Probability":
+                        "Infection Probability (%)"
+                }
+            )
+        )
+
+
+        st.dataframe(
+            display_df,
+            use_container_width=True
+        )
+
+
+        st.divider()
+
+
+        st.header(
+            "🧪 Sensor Response Over Time"
+        )
+
+
+        selected_sensor = st.selectbox(
+            "Select Sensor",
+            SENSORS
+        )
+
+
+        sensor_by_time = (
+            df.groupby(
+                "Time_h"
+            )[selected_sensor]
+            .mean()
+            .reset_index()
+        )
+
+
+        fig4, ax4 = plt.subplots(
+            figsize=(12, 5)
+        )
+
+
+        ax4.plot(
+            sensor_by_time["Time_h"],
+            sensor_by_time[
+                selected_sensor
+            ],
+            marker="o",
+            linewidth=2
+        )
+
+
+        ax4.set_xlabel(
+            "Time after infestation (hours)"
+        )
+
+
+        ax4.set_ylabel(
+            "Sensor Response"
+        )
+
+
+        ax4.set_title(
+            f"{selected_sensor} Response vs Time"
+        )
+
+
+        ax4.grid(
+            alpha=0.3
+        )
+
+
+        plt.tight_layout()
+
+
+        st.pyplot(
+            fig4
+        )
 
 
     except Exception as e:
 
         st.error(
-            "Could not generate time graph."
+            "Could not generate detection-time analysis."
         )
 
         st.exception(e)
+
+
+st.divider()
+
+
+st.header(
+    "ℹ️ Model Information"
+)
+
+
+st.write(
+    f"Number of sensors: {len(SENSORS)}"
+)
+
+
+st.write(
+    "Sensors:"
+)
+
+
+st.write(
+    ", ".join(SENSORS)
+)
+
+
+st.write(
+    f"Detection threshold: "
+    f"{threshold * 100:.0f}%"
+)
