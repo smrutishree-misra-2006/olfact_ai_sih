@@ -13,13 +13,14 @@ st.set_page_config(
     layout="wide"
 )
 
+MODEL_PATH = "olfact_model.pkl"
+FEATURE_PATH = "feature_columns.pkl"
+CONFIG_PATH = "model_config.pkl"
+DATA_PATH = "data.csv"
 
-MODEL_PATH = r"C:\final\olfact_model.pkl"
-FEATURE_PATH = r"C:\final\feature_columns.pkl"
-CONFIG_PATH = r"C:\final\model_config.pkl"
+
 
 DATA_FILE_ID = "1MH9Qu8hO1uS3eGI8jUFTTQynMYU0NAI9"
-DATA_PATH = r"C:\final\data.csv"
 
 
 SENSORS = [
