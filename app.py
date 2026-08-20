@@ -57,12 +57,7 @@ st.sidebar.header(
 )
 
 
-time_h = st.sidebar.number_input(
-    "Time after infestation (hours)",
-    min_value=0.0,
-    value=1.0,
-    step=1.0
-)
+
 
 
 
